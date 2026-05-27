@@ -152,7 +152,7 @@ qm4il_poll_for_unread_message() {
         return 1
     fi
     
-    _with_linear_polling qm4il_receive_unread_message "$inbox_id" "$interval" "$max_attempts"
+    _with_smart_polling qm4il_receive_unread_message "$inbox_id" "4" "5" "$max_attempts"
 }
 
 qm4il_send_fortune() {
@@ -354,6 +354,40 @@ qm4il_list_functions() {
     echo "  qm4il_list_functions"
     echo
     echo "Use 'qm4il_help' for detailed usage information."
+}
+
+_with_smart_polling() {
+    local func="$1"
+    local inbox_id="$2"
+    local initial_delay="${3:-4}"
+    local poll_interval="${4:-5}"
+    local max_attempts="${5:-60}"
+    
+    # Immediate attempt
+    if "$func" "$inbox_id"; then
+        return 0
+    fi
+    
+    # Second attempt after initial delay
+    echo "No message yet, waiting ${initial_delay}s..." >&2
+    sleep "$initial_delay"
+    if "$func" "$inbox_id"; then
+        return 0
+    fi
+    
+    # Linear polling
+    local attempt=3
+    while (( attempt <= max_attempts )); do
+        echo "Attempt $attempt: waiting ${poll_interval}s..." >&2
+        sleep "$poll_interval"
+        if "$func" "$inbox_id"; then
+            return 0
+        fi
+        attempt=$(( attempt + 1 ))
+    done
+    
+    echo "No message received after $max_attempts attempts" >&2
+    return 1
 }
 
 _with_linear_polling() {
